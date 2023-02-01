@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.CompilerServices;
 using WebApi_Training;
 using WebApi_Training.Database;
 using WebApi_Training.Dto;
 using WebApi_Training.Models;
+using WebApi_Training.Repository;
+using WebApi_Training.Repository.IRepository;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +16,7 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddScoped<ICouponRepository, CouponRepository>();
 builder.Services.AddDbContext<ApplicationDbContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build();
@@ -24,65 +28,30 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapGet("/api/coupon", (ApplicationDbContext dbContext) => { 
-    return Results.Ok(dbContext.coupons.ToList());
+app.MapGet("/api/coupon", async (ICouponRepository _couponRepository) => { 
+    return Results.Ok(await _couponRepository.GetAllAsync());
 }) ;
 
-app.MapGet("/api/coupon/{id:int}", (ApplicationDbContext dbContext,int id) =>
+app.MapGet("/api/coupon/{id:int}", async (ICouponRepository _couponRepository, int id) =>
 {
-    return Results.Ok(dbContext.coupons.FirstOrDefault(n => n.Id == id)); 
+    return Results.Ok(await _couponRepository.GetById(id)); 
 });   
 
-app.MapPost("/api/coupon/create", ([FromBody] CreateCouponDto createCouponDto, ApplicationDbContext dbContext) =>
+app.MapPost("/api/coupon/create", async ([FromBody] CreateCouponDto createCouponDto, ICouponRepository _couponRepository) =>
 {
-    var queryRecord = dbContext.coupons.FirstOrDefault(n => n.Name == createCouponDto.Name);
-    if (queryRecord != null)
-    {
-        return Results.BadRequest("Record already exits");
-    }
-    Coupon coupon = new()
-    {
-        Name = createCouponDto.Name,
-        IsActive = createCouponDto.IsActive,
-        Percent = createCouponDto.Percent,
-        Created = createCouponDto.Created
-    };
-    dbContext.coupons.Add(coupon);
-    dbContext.SaveChanges();
-    return Results.Ok(coupon);
+    var queryRecord = await _couponRepository.Create(createCouponDto);
+    return Results.Ok(queryRecord);
 });
 
-app.MapPut("/api/coupon/update/{id}", (ApplicationDbContext dbContext, UpdateCouponDto updateCoupon, int id) =>
+app.MapPut("/api/coupon/update/{id}", async (ICouponRepository _couponRepository, UpdateCouponDto updateCouponDto, int id) =>
 {
-    var record = dbContext.coupons.FirstOrDefault(n => n.Id == id);
-    if (record == null)
-    {
-        return Results.BadRequest("Record doesn't exits");
-    }
-    else
-    {
-        record.Name = updateCoupon.Name;
-        record.Percent = updateCoupon.Percent;
-        record.IsActive = updateCoupon.IsActive;
-        record.LastUpdated = updateCoupon.LastUpdated;
-        dbContext.SaveChanges();
-    }
+    var record = await _couponRepository.Update(updateCouponDto, id);
     return Results.Ok(record);
 });
 
-app.MapDelete("/api/coupon/delete/{id}", (ApplicationDbContext dbContext, int id) =>
+app.MapDelete("/api/coupon/delete/{id}", (ICouponRepository _couponRepository, int id) =>
 {
-    var queryId = dbContext.coupons.FirstOrDefault(n => n.Id == id);
-    if (queryId == null)
-    {
-        return Results.BadRequest("Id does not exist");
-    }
-    else
-    {
-        dbContext.coupons.Remove(queryId);
-        dbContext.SaveChanges();
-        return Results.Ok("Deleted record");
-    }    
+     _couponRepository.DeleteById(id);
 });
  
 app.UseHttpsRedirection();
