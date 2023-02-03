@@ -17,6 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<ICouponRepository, CouponRepository>();
+builder.Services.AddScoped<IAuthenticationRepository, AuthenticationRepository>();
 builder.Services.AddDbContext<ApplicationDbContext>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 var app = builder.Build();
@@ -53,7 +54,28 @@ app.MapDelete("/api/coupon/delete/{id}", (ICouponRepository _couponRepository, i
 {
      _couponRepository.DeleteById(id);
 });
- 
+
+app.MapPost("api/login", async (IAuthenticationRepository _authenticationRepository,[FromBody] LoginRequestDto loginRequest) =>
+{
+    var loginResponse = await _authenticationRepository.Login(loginRequest);
+    if (loginResponse == null)
+        return null;
+    return loginResponse;
+});
+
+app.MapPost("api/register", async (IAuthenticationRepository _authenticationRepository, [FromBody] RegisterRequestDto registerRequest) =>
+{
+    bool isUnique = _authenticationRepository.IsUnquine(registerRequest.UserName);
+    if (!isUnique)
+        return null;
+
+    var registerResponse = await _authenticationRepository.Register(registerRequest);
+    if (registerResponse == null || string.IsNullOrEmpty(registerResponse.UserName))
+        return null;
+
+    return registerResponse;
+});
+
 app.UseHttpsRedirection();
 
 app.UseAuthorization();
